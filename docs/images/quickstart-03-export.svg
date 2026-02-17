@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <rect width="1200" height="700" fill="#f0fdf4"/>
+  <rect x="80" y="80" width="1040" height="540" rx="20" fill="#ffffff" stroke="#86efac" stroke-width="3"/>
+  <text x="120" y="170" font-size="42" fill="#0f172a" font-family="Arial, sans-serif">Quick Start 3/3: エクスポート</text>
+  <text x="120" y="240" font-size="28" fill="#334155" font-family="Arial, sans-serif">保存先を選択し、Markdownエクスポートを実行</text>
+  <text x="120" y="300" font-size="24" fill="#64748b" font-family="Arial, sans-serif">※ この画像はプレースホルダです。実スクリーンショットに差し替えてください。</text>
+</svg>

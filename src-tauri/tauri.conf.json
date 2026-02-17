@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/1",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:5173",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "Backlog Markdown Exporter",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "dialog": {
+        "all": true,
+        "open": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "identifier": "com.company.backlog-markdown-exporter",
+      "targets": "dmg",
+      "macOS": {
+        "hardenedRuntime": true
+      }
+    },
+    "windows": [
+      {
+        "title": "Backlog Markdown Exporter",
+        "width": 1200,
+        "height": 860,
+        "resizable": true
+      }
+    ]
+  }
+}
