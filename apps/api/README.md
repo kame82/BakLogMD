@@ -50,7 +50,3 @@ npm run webapi:dev
 - Cookie用途は分離
 - `SESSION_COOKIE_NAME`: 認証セッションID（httpOnly）
 - `CSRF_COOKIE_NAME`: CSRFトークン（`X-CSRF-Token`と照合）
-
-## Note
-
-`[api] listening on :3000` と表示される場合は、`apps/api/.env` の `PORT` が `3000` に設定されています。
