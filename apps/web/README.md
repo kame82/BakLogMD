@@ -1,29 +1,37 @@
 # BaklogMD Web
 
-Backlog OAuthで認証するWebクライアントです。
+Backlog OAuthでログインし、課題検索とMarkdownダウンロードを行うWebクライアントです。
 
-## 実装済み機能
+## Features
 
 - OAuthログイン / ログアウト
-- 認証後セッション表示
-- プロジェクト同期表示
+- セッション表示
+- プロジェクト同期
 - 課題検索（キーワード / 課題キー）
 - 課題詳細表示
-- Markdownダウンロード（Backlog記法の基本変換あり）
+- Markdownダウンロード（Backlog記法の基本変換）
 
-## 起動
+## Start
 
 ```bash
 npm install
 npm run web:dev
 ```
 
-## 環境変数
+同時起動する場合（推奨）:
 
-- `VITE_API_BASE_URL` (default: `http://localhost:3000`)
+```bash
+npm run webapi:dev
+```
+
+- Web default URL: `http://localhost:43174`
+
+## Environment Variables
+
+- `VITE_API_BASE_URL` (default: `http://localhost:43100`)
 - `VITE_CSRF_COOKIE_NAME` (default: `baklogmd_csrf`)
 
-## ルーティング
+## Routes
 
-- `/`: ログイン/認証後UI（プロジェクト・課題検索・課題詳細）
-- `/auth/callback`: Backlog OAuthコールバック受け取り
+- `/`: ログイン/認証後UI
+- `/auth/callback`: Backlog OAuthコールバック受信
