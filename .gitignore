@@ -1,14 +1,14 @@
 # Dependencies
 node_modules/
 
-# Frontend build artifacts
-dist/
-dist-ssr/
-.vite/
+# Build artifacts
+**/dist/
+**/dist-ssr/
+**/.vite/
 *.tsbuildinfo
 
 # Rust/Tauri build artifacts
-src-tauri/target/
+**/src-tauri/target/
 
 # Logs
 *.log

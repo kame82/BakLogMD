@@ -1,25 +1,20 @@
 {
-  "name": "backlog-markdown-exporter",
-  "version": "0.1.0",
+  "name": "baklogmd",
   "private": true,
-  "type": "module",
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^1.5.3",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-markdown": "^9.0.1"
-  },
-  "devDependencies": {
-    "@tauri-apps/cli": "^1.5.13",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "typescript": "^5.7.2",
-    "vite": "^5.4.11"
+    "desktop:dev": "npm run dev -w apps/desktop",
+    "desktop:tauri": "npm run tauri -w apps/desktop",
+    "desktop:build": "npm run build -w apps/desktop",
+    "web:dev": "npm run dev -w apps/web",
+    "web:build": "npm run build -w apps/web",
+    "api:dev": "npm run dev -w apps/api",
+    "api:build": "npm run build -w apps/api",
+    "shared:build": "npm run build -w packages/shared",
+    "build": "npm run shared:build && npm run api:build && npm run web:build && npm run desktop:build"
   }
 }
