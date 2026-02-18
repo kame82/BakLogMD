@@ -1,7 +1,11 @@
 :root {
-  font-family: "Noto Sans JP", sans-serif;
-  color: #111827;
-  background-color: #f3f4f6;
+  font-family: 'Noto Sans JP', sans-serif;
+  color: #101828;
+  background: radial-gradient(circle at 10% 10%, #dbeafe 0, #eff6ff 35%, #f8fafc 100%);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -11,7 +15,81 @@ body {
 .container {
   min-height: 100vh;
   display: grid;
-  place-content: center;
-  gap: 0.5rem;
-  padding: 1rem;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.card {
+  width: min(560px, 100%);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #dbe5f0;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
+  padding: 1.5rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.65rem;
+}
+
+.subtle {
+  margin-top: 0.4rem;
+  color: #475467;
+}
+
+.form {
+  margin-top: 1.2rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  font-size: 1rem;
+}
+
+button {
+  width: fit-content;
+  border: 0;
+  background: #0f172a;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.session-box {
+  margin-top: 1.2rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.notice {
+  margin-top: 1rem;
+  color: #0f5132;
+}
+
+.error {
+  margin-top: 1rem;
+  color: #991b1b;
+}
+
+.hint {
+  margin: 0;
+  color: #475467;
+  font-size: 0.92rem;
 }
