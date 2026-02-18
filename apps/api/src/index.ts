@@ -59,8 +59,8 @@ const BacklogIssueSchema = z.object({
 });
 
 const app = express();
-const port = Number(process.env.PORT ?? 3000);
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5174')
+const port = Number(process.env.PORT ?? 43100);
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:43174')
   .split(',')
   .map((v) => v.trim())
   .filter(Boolean);

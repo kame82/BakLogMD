@@ -11,6 +11,7 @@
     "desktop:tauri": "npm run tauri -w apps/desktop",
     "desktop:build": "npm run build -w apps/desktop",
     "web:dev": "npm run dev -w apps/web",
+    "webapi:dev": "node scripts/dev-web-api.mjs",
     "web:build": "npm run build -w apps/web",
     "api:dev": "npm run dev -w apps/api",
     "api:build": "npm run build -w apps/api",

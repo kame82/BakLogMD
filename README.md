@@ -1,55 +1,52 @@
 # BaklogMD Monorepo
 
-Backlog連携アプリ群を1つのモノレポで管理する構成です。
+Backlog連携アプリを1つのリポジトリで管理するモノレポです。
 
-## Structure
-
-- `apps/desktop`: 既存Tauriデスクトップアプリ
-- `apps/web`: Webフロントエンド（新規）
-- `apps/api`: OAuthブローカー/APIサーバー（新規）
-- `packages/shared`: 型・バリデーション・共通ロジック
-
-## Tech Stack
-
-- `apps/desktop`: React + TypeScript + Vite + Tauri (Rust) + SQLite + Keychain
-- `apps/web`: React + TypeScript + Vite
-- `apps/api`: Node.js + Express + TypeScript + Helmet + CORS + dotenv
-- `packages/shared`: TypeScript + Zod
-- Monorepo: npm workspaces
-
-## Architecture
-
-1. `apps/web` は `apps/api` にHTTPで接続してOAuthを実行します。
-2. `apps/api` が Backlog OAuth と Backlog API を代理実行し、`client_secret`を保持します。
-3. セッションは `apps/api` 発行の `httpOnly` Cookie で管理します（`apps/web`は`credentials: include`で送受信）。
-4. `packages/shared` は `apps/web` と `apps/api` の共通型/バリデーションを提供します。
-5. `apps/desktop` は現時点では独立実装（APIキー方式）で、今後ブローカー経由へ統合予定です。
-
-## Setup
+## Quick Start
 
 ```bash
 npm install
+npm run webapi:dev
 ```
 
-## Common Commands
+- Web: `http://localhost:43174`
+- API: `http://localhost:43100`
+
+## Repo Layout
+
+- `apps/desktop`: 既存Tauriデスクトップアプリ
+- `apps/web`: Webクライアント（OAuthログイン、課題検索、Markdownダウンロード）
+- `apps/api`: OAuthブローカー / Backlog代理API
+- `packages/shared`: 共通型・バリデーション（Zod）
+
+## Commands
 
 ```bash
-npm run desktop:tauri
+npm run webapi:dev
 npm run web:dev
 npm run api:dev
+npm run desktop:tauri
 npm run build
 ```
 
-## App Docs
+## Docs
 
-- Desktopセットアップ/運用手順: `apps/desktop/README.md`
-- Webクライアント手順: `apps/web/README.md`
-- OAuthブローカーAPI手順: `apps/api/README.md`
+- Desktop: `apps/desktop/README.md`
+- Web: `apps/web/README.md`
+- API: `apps/api/README.md`
 
-## Security Direction
+## Architecture
 
-- Backlogの`client_secret`は`apps/api`でのみ保持
-- `apps/web`/`apps/desktop`はブローカー経由で認証
-- 共通の入力バリデーションは`packages/shared`で一元化
-- Webの更新系POSTは`Origin`検証 + double-submit CSRFで保護
-- Cookieは用途を分離（`SESSION_COOKIE_NAME`: 認証セッションID / `CSRF_COOKIE_NAME`: CSRFトークン）
+1. `apps/web` が `apps/api` に接続してOAuthを開始
+2. `apps/api` が Backlog OAuth / Backlog API を代理実行
+3. `client_secret` は `apps/api` のみ保持
+4. セッションはCookieで管理し、POSTはCSRF保護
+
+## Security Snapshot
+
+- `client_secret` はサーバーのみ保持
+- Backlog Space URL は許可ドメインに制限
+- 更新系POSTは `Origin` 検証 + double-submit CSRF
+- Cookieを用途分離
+- `SESSION_COOKIE_NAME`: 認証セッションID
+- `CSRF_COOKIE_NAME`: CSRF検証トークン
