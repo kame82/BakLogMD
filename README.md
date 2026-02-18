@@ -1,8 +1,8 @@
-# BaklogMD Monorepo
+# BaklogMD
 
-Backlog連携アプリを1つのリポジトリで管理するモノレポです。
+Backlog連携アプリを1つのリポジトリで管理するアプリケーションです。
 
-## Quick Start
+## Quick Start（Web）
 
 ```bash
 npm install
