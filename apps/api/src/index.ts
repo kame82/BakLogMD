@@ -43,6 +43,19 @@ const BacklogUserSchema = z.object({
   name: z.string()
 });
 
+const BacklogProjectSchema = z.object({
+  id: z.number(),
+  projectKey: z.string(),
+  name: z.string()
+});
+
+const BacklogIssueSchema = z.object({
+  issueKey: z.string(),
+  summary: z.string(),
+  description: z.string().nullable().optional(),
+  updated: z.string()
+});
+
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5174')
@@ -173,49 +186,98 @@ app.post('/oauth/backlog/callback', async (req, res) => {
 });
 
 app.get('/auth/session', async (req, res) => {
-  const sid = getCookieValue(req.headers.cookie, cookieName);
-  if (!sid) {
-    res.json(AuthSessionSchema.parse({ authenticated: false }));
-    return;
-  }
-
-  const session = sessions.get(sid);
+  const session = await getActiveSession(req);
   if (!session) {
     res.json(AuthSessionSchema.parse({ authenticated: false }));
     return;
   }
+  res.json(toAuthSessionResponse(session));
+});
 
-  if (session.expiresAt <= Date.now() + 5_000) {
-    if (!session.refreshToken) {
-      sessions.delete(sid);
-      res.json(AuthSessionSchema.parse({ authenticated: false }));
-      return;
-    }
-
-    try {
-      const refreshed = await exchangeToken({
-        grantType: 'refresh_token',
-        refreshToken: session.refreshToken,
-        spaceUrl: session.spaceUrl
-      });
-      session.accessToken = refreshed.access_token;
-      session.refreshToken = refreshed.refresh_token ?? session.refreshToken;
-      session.expiresAt = Date.now() + refreshed.expires_in * 1000;
-    } catch {
-      sessions.delete(sid);
-      res.json(AuthSessionSchema.parse({ authenticated: false }));
-      return;
-    }
+app.get('/backlog/projects', async (req, res) => {
+  const session = await getActiveSession(req);
+  if (!session) {
+    res.status(401).json({ message: 'Not authenticated.' });
+    return;
   }
 
-  res.json(
-    AuthSessionSchema.parse({
-      authenticated: true,
-      spaceUrl: session.spaceUrl,
-      expiresAt: new Date(session.expiresAt).toISOString(),
-      user: session.user
-    })
-  );
+  try {
+    const items = await backlogGet(session, '/api/v2/projects');
+    const projects = z.array(BacklogProjectSchema).parse(items);
+    const now = new Date().toISOString();
+    res.json(
+      projects.map((p) => ({
+        id: p.id,
+        projectKey: p.projectKey,
+        name: p.name,
+        syncedAt: now
+      }))
+    );
+  } catch (error) {
+    res.status(502).json({ message: error instanceof Error ? error.message : 'Project fetch failed.' });
+  }
+});
+
+app.get('/backlog/issues/search', async (req, res) => {
+  const session = await getActiveSession(req);
+  if (!session) {
+    res.status(401).json({ message: 'Not authenticated.' });
+    return;
+  }
+
+  const mode = req.query.mode === 'key' ? 'key' : 'keyword';
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (!q) {
+    res.status(400).json({ message: 'Query parameter q is required.' });
+    return;
+  }
+
+  try {
+    const path =
+      mode === 'key'
+        ? `/api/v2/issues/${encodeURIComponent(q)}`
+        : `/api/v2/issues?keyword=${encodeURIComponent(q)}`;
+    const payload = await backlogGet(session, path);
+    const issues =
+      mode === 'key' ? [BacklogIssueSchema.parse(payload)] : z.array(BacklogIssueSchema).parse(payload);
+    res.json(
+      issues.map((item) => ({
+        issueKey: item.issueKey,
+        summary: item.summary,
+        updatedAt: item.updated
+      }))
+    );
+  } catch (error) {
+    res.status(502).json({ message: error instanceof Error ? error.message : 'Issue search failed.' });
+  }
+});
+
+app.get('/backlog/issues/:issueKey', async (req, res) => {
+  const session = await getActiveSession(req);
+  if (!session) {
+    res.status(401).json({ message: 'Not authenticated.' });
+    return;
+  }
+
+  const issueKey = req.params.issueKey?.trim();
+  if (!issueKey) {
+    res.status(400).json({ message: 'issueKey is required.' });
+    return;
+  }
+
+  try {
+    const payload = await backlogGet(session, `/api/v2/issues/${encodeURIComponent(issueKey)}`);
+    const item = BacklogIssueSchema.parse(payload);
+    res.json({
+      issueKey: item.issueKey,
+      summary: item.summary,
+      descriptionRaw: item.description ?? '',
+      updatedAt: item.updated,
+      syncedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(502).json({ message: error instanceof Error ? error.message : 'Issue detail fetch failed.' });
+  }
 });
 
 app.post('/auth/logout', (req, res) => {
@@ -227,6 +289,74 @@ app.post('/auth/logout', (req, res) => {
   clearSessionCookie(res);
   res.status(204).send();
 });
+
+function toAuthSessionResponse(session: AuthSession) {
+  return AuthSessionSchema.parse({
+    authenticated: true,
+    spaceUrl: session.spaceUrl,
+    expiresAt: new Date(session.expiresAt).toISOString(),
+    user: session.user
+  });
+}
+
+async function getActiveSession(req: express.Request): Promise<AuthSession | null> {
+  const sid = getCookieValue(req.headers.cookie, cookieName);
+  if (!sid) return null;
+
+  const session = sessions.get(sid);
+  if (!session) return null;
+
+  if (session.expiresAt <= Date.now() + 5_000) {
+    if (!session.refreshToken) {
+      sessions.delete(sid);
+      return null;
+    }
+
+    try {
+      const refreshed = await exchangeToken({
+        grantType: 'refresh_token',
+        refreshToken: session.refreshToken,
+        spaceUrl: session.spaceUrl
+      });
+      session.accessToken = refreshed.access_token;
+      session.refreshToken = refreshed.refresh_token ?? session.refreshToken;
+      session.expiresAt = Date.now() + refreshed.expires_in * 1000;
+    } catch (error) {
+      console.error('[oauth.refresh_failed]', {
+        sid,
+        spaceUrl: session.spaceUrl,
+        error: error instanceof Error ? error.message : error
+      });
+      sessions.delete(sid);
+      return null;
+    }
+  }
+
+  return session;
+}
+
+async function backlogGet(session: AuthSession, path: string) {
+  const url = new URL(path, session.spaceUrl);
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${session.accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error('[backlog.api_failed]', {
+      status: response.status,
+      statusText: response.statusText,
+      path,
+      spaceUrl: session.spaceUrl,
+      body
+    });
+    throw new Error(`Backlog API failed (${response.status}): ${body}`);
+  }
+
+  return response.json();
+}
 
 function normalizeSpaceUrl(spaceUrl: string) {
   const parsed = new URL(spaceUrl);
