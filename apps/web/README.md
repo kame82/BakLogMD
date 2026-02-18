@@ -21,6 +21,7 @@ npm run web:dev
 ## 環境変数
 
 - `VITE_API_BASE_URL` (default: `http://localhost:3000`)
+- `VITE_CSRF_COOKIE_NAME` (default: `baklogmd_csrf`)
 
 ## ルーティング
 
