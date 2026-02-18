@@ -2,15 +2,63 @@
 
 Backlog連携アプリを1つのリポジトリで管理するアプリケーションです。
 
-## Quick Start（Web）
+## このリポジトリにあるアプリ
+
+- `apps/web`: Webアプリ（OAuthログイン、課題検索、Markdownダウンロード）
+- `apps/desktop`: Tauriデスクトップアプリ（ローカル利用向け）
+
+補足: Webアプリは `apps/api`（OAuthブローカー/API）とセットで動作します。
+
+## セットアップ
 
 ```bash
 npm install
+```
+
+## 事前設定（Web + API向け）
+
+`apps/web` を動かす前に `apps/api/.env` の設定が必要です。
+
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+最低限、以下を設定してください。
+
+- `BACKLOG_CLIENT_ID`
+- `BACKLOG_CLIENT_SECRET`
+- `BACKLOG_REDIRECT_URI`（通常: `http://localhost:43174/auth/callback`）
+- `ALLOWED_ORIGINS`（通常: `http://localhost:43174`）
+- `OAUTH_STATE_SECRET`（32文字以上のランダム文字列）
+
+## 事前設定（Desktop向け）
+
+`apps/desktop` は Web/API の `.env` とは別系統です。  
+Rust/Tauriの事前準備は [apps/desktop/README.md](apps/desktop/README.md) に従って設定してください。
+
+## Webアプリの起動
+
+推奨（Web + APIを同時起動）:
+
+```bash
 npm run webapi:dev
 ```
 
 - Web: `http://localhost:43174`
 - API: `http://localhost:43100`
+
+個別起動する場合:
+
+```bash
+npm run api:dev
+npm run web:dev
+```
+
+## デスクトップアプリの起動
+
+```bash
+npm run desktop:tauri
+```
 
 ## Repo Layout
 
@@ -31,9 +79,9 @@ npm run build
 
 ## Docs
 
-- Desktop: `apps/desktop/README.md`
-- Web: `apps/web/README.md`
-- API: `apps/api/README.md`
+- Desktop: [apps/desktop/README.md](apps/desktop/README.md)
+- Web: [apps/web/README.md](apps/web/README.md)
+- API: [apps/api/README.md](apps/api/README.md)
 
 ## Architecture
 
