@@ -1,0 +1,17 @@
+:root {
+  font-family: "Noto Sans JP", sans-serif;
+  color: #111827;
+  background-color: #f3f4f6;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+}
