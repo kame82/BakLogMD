@@ -9,6 +9,7 @@ import {
   searchIssues,
   startBacklogOAuth
 } from './api';
+import { backlogToMarkdown } from './markdown';
 
 const CALLBACK_PATH = '/auth/callback';
 
@@ -29,6 +30,7 @@ export function App() {
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const callbackHandledRef = useRef(false);
 
   useEffect(() => {
@@ -168,6 +170,7 @@ export function App() {
   async function handleSelectIssue(issueKey: string) {
     setLoadingDetail(true);
     setError(null);
+    setDownloadNotice(null);
     try {
       const detail = await fetchIssueDetail(issueKey);
       setSelectedIssue(detail);
@@ -176,6 +179,40 @@ export function App() {
     } finally {
       setLoadingDetail(false);
     }
+  }
+
+  function handleDownloadMarkdown() {
+    if (!selectedIssue) return;
+
+    const title = `${selectedIssue.issueKey} ${selectedIssue.summary}`.trim();
+    const convertedBody = backlogToMarkdown(selectedIssue.descriptionRaw || '');
+    const markdown = [
+      `# ${title}`,
+      '',
+      `- Issue Key: ${selectedIssue.issueKey}`,
+      `- Updated At: ${selectedIssue.updatedAt}`,
+      '',
+      '---',
+      '',
+      convertedBody || '(説明なし)',
+      ''
+    ].join('\n');
+
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    const safeName = `${selectedIssue.issueKey}-${selectedIssue.summary}`
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 120);
+    anchor.href = url;
+    anchor.download = `${safeName || selectedIssue.issueKey}.md`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    setDownloadNotice('Markdownファイルをダウンロードしました。');
   }
 
   return (
@@ -290,6 +327,12 @@ export function App() {
                   <strong>{selectedIssue.issueKey}</strong>: {selectedIssue.summary}
                 </p>
                 <p className="subtle">更新日: {new Date(selectedIssue.updatedAt).toLocaleString()}</p>
+                <div className="row gap">
+                  <button type="button" onClick={handleDownloadMarkdown}>
+                    Markdownをダウンロード
+                  </button>
+                </div>
+                {downloadNotice && <p className="notice inline-notice">{downloadNotice}</p>}
                 <pre className="preview">{selectedIssue.descriptionRaw || '(説明なし)'}</pre>
               </article>
             )}
