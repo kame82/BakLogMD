@@ -10,6 +10,7 @@ import {
 import { ZodError } from 'zod';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+const CSRF_COOKIE_NAME = import.meta.env.VITE_CSRF_COOKIE_NAME ?? 'baklogmd_csrf';
 
 async function parseError(response: Response): Promise<Error> {
   const text = await response.text();
@@ -26,6 +27,17 @@ function normalizeSpaceUrlInput(value: string): string {
   if (!trimmed) return trimmed;
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
+}
+
+function getCookie(name: string): string | null {
+  const chunks = document.cookie.split(';');
+  for (const chunk of chunks) {
+    const [k, ...v] = chunk.trim().split('=');
+    if (k === name) {
+      return decodeURIComponent(v.join('='));
+    }
+  }
+  return null;
 }
 
 function validateBacklogSpaceHost(spaceUrl: string): void {
@@ -66,10 +78,14 @@ export async function startBacklogOAuth(spaceUrl: string): Promise<string> {
 }
 
 export async function completeBacklogOAuth(code: string, state: string): Promise<AuthSession> {
+  const csrfToken = getCookie(CSRF_COOKIE_NAME);
   const response = await fetch(`${API_BASE_URL}/oauth/backlog/callback`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+    },
     body: JSON.stringify({ code, state })
   });
 
@@ -93,9 +109,13 @@ export async function loadAuthSession(): Promise<AuthSession> {
 }
 
 export async function logout(): Promise<void> {
+  const csrfToken = getCookie(CSRF_COOKIE_NAME);
   const response = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: 'POST',
-    credentials: 'include'
+    credentials: 'include',
+    headers: {
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+    }
   });
 
   if (!response.ok) {

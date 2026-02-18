@@ -15,6 +15,7 @@ type PendingAuth = {
   sid: string;
   spaceUrl: string;
   expiresAt: number;
+  csrfToken: string;
 };
 
 type AuthSession = {
@@ -23,6 +24,7 @@ type AuthSession = {
   accessToken: string;
   refreshToken?: string;
   expiresAt: number;
+  csrfToken: string;
   user: {
     id: number;
     userId: string;
@@ -62,12 +64,23 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5174')
   .split(',')
   .map((v) => v.trim())
   .filter(Boolean);
-const stateSecret = process.env.OAUTH_STATE_SECRET ?? 'dev-only-change-me';
+const stateSecret = process.env.OAUTH_STATE_SECRET ?? '';
 const cookieName = process.env.SESSION_COOKIE_NAME ?? 'baklogmd_sid';
+const csrfCookieName = process.env.CSRF_COOKIE_NAME ?? 'baklogmd_csrf';
 const isSecureCookie = process.env.NODE_ENV === 'production';
+const allowedBacklogHostSuffixes = ['.backlog.com', '.backlog.jp', '.backlogtool.com'];
 
 const pendingAuth = new Map<string, PendingAuth>();
 const sessions = new Map<string, AuthSession>();
+
+if (!process.env.BACKLOG_CLIENT_ID || !process.env.BACKLOG_CLIENT_SECRET || !process.env.BACKLOG_REDIRECT_URI) {
+  throw new Error(
+    'Missing required env. BACKLOG_CLIENT_ID, BACKLOG_CLIENT_SECRET, BACKLOG_REDIRECT_URI must be configured.'
+  );
+}
+if (!stateSecret || stateSecret.length < 32) {
+  throw new Error('OAUTH_STATE_SECRET must be configured and at least 32 characters long.');
+}
 
 app.use(helmet());
 app.use(
@@ -83,6 +96,19 @@ app.use(
   })
 );
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    next();
+    return;
+  }
+
+  const origin = req.headers.origin;
+  if (!origin || !allowedOrigins.includes(origin)) {
+    res.status(403).json({ message: 'Invalid origin.' });
+    return;
+  }
+  next();
+});
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, app: APP_NAME, service: 'oauth-broker-api' });
@@ -100,14 +126,22 @@ app.get('/oauth/backlog/start', (req, res) => {
     return;
   }
 
-  const spaceUrl = normalizeSpaceUrl(parsedSpaceUrl.data);
+  const validation = validateBacklogSpaceUrl(parsedSpaceUrl.data);
+  if (!validation.ok) {
+    res.status(400).json({ message: validation.message });
+    return;
+  }
+
+  const spaceUrl = normalizeSpaceUrl(validation.value);
   const sid = crypto.randomBytes(24).toString('hex');
+  const csrfToken = crypto.randomBytes(24).toString('hex');
   const expiresAt = Date.now() + 5 * 60 * 1000;
   const state = signState({ sid, spaceUrl, exp: expiresAt });
 
-  pendingAuth.set(sid, { sid, spaceUrl, expiresAt });
+  pendingAuth.set(sid, { sid, spaceUrl, expiresAt, csrfToken });
   clearExpired();
   setSessionCookie(res, sid);
+  setCsrfCookie(res, csrfToken);
 
   const authUrl = new URL('/OAuth2AccessRequest.action', spaceUrl);
   authUrl.searchParams.set('response_type', 'code');
@@ -149,6 +183,10 @@ app.post('/oauth/backlog/callback', async (req, res) => {
     res.status(401).json({ message: 'OAuth session expired.' });
     return;
   }
+  if (!verifyCsrf(req, pending.csrfToken)) {
+    res.status(403).json({ message: 'Invalid CSRF token.' });
+    return;
+  }
 
   try {
     const token = await exchangeToken({
@@ -164,6 +202,7 @@ app.post('/oauth/backlog/callback', async (req, res) => {
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiresAt: Date.now() + token.expires_in * 1000,
+      csrfToken: pending.csrfToken,
       user
     };
 
@@ -179,8 +218,12 @@ app.post('/oauth/backlog/callback', async (req, res) => {
       })
     );
   } catch (error) {
+    console.error('[oauth.callback_failed]', {
+      spaceUrl: parsedState.spaceUrl,
+      error: error instanceof Error ? error.message : String(error)
+    });
     res.status(401).json({
-      message: error instanceof Error ? error.message : 'OAuth callback failed.'
+      message: 'OAuth callback failed.'
     });
   }
 });
@@ -214,7 +257,11 @@ app.get('/backlog/projects', async (req, res) => {
       }))
     );
   } catch (error) {
-    res.status(502).json({ message: error instanceof Error ? error.message : 'Project fetch failed.' });
+    console.error('[backlog.projects_failed]', {
+      spaceUrl: session.spaceUrl,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    res.status(502).json({ message: 'Project fetch failed.' });
   }
 });
 
@@ -248,7 +295,12 @@ app.get('/backlog/issues/search', async (req, res) => {
       }))
     );
   } catch (error) {
-    res.status(502).json({ message: error instanceof Error ? error.message : 'Issue search failed.' });
+    console.error('[backlog.issue_search_failed]', {
+      mode,
+      spaceUrl: session.spaceUrl,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    res.status(502).json({ message: 'Issue search failed.' });
   }
 });
 
@@ -276,17 +328,30 @@ app.get('/backlog/issues/:issueKey', async (req, res) => {
       syncedAt: new Date().toISOString()
     });
   } catch (error) {
-    res.status(502).json({ message: error instanceof Error ? error.message : 'Issue detail fetch failed.' });
+    console.error('[backlog.issue_detail_failed]', {
+      issueKey,
+      spaceUrl: session.spaceUrl,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    res.status(502).json({ message: 'Issue detail fetch failed.' });
   }
 });
 
 app.post('/auth/logout', (req, res) => {
   const sid = getCookieValue(req.headers.cookie, cookieName);
   if (sid) {
+    const session = sessions.get(sid);
+    if (session && !verifyCsrf(req, session.csrfToken)) {
+      res.status(403).json({ message: 'Invalid CSRF token.' });
+      return;
+    }
+  }
+  if (sid) {
     sessions.delete(sid);
     pendingAuth.delete(sid);
   }
   clearSessionCookie(res);
+  clearCsrfCookie(res);
   res.status(204).send();
 });
 
@@ -388,6 +453,41 @@ function clearSessionCookie(res: express.Response) {
   res.setHeader('Set-Cookie', cookie);
 }
 
+function setCsrfCookie(res: express.Response, csrfToken: string) {
+  const cookie = serializeCookie(csrfCookieName, csrfToken, {
+    httpOnly: false,
+    sameSite: 'Lax',
+    secure: isSecureCookie,
+    path: '/',
+    maxAge: 60 * 60
+  });
+  appendSetCookie(res, cookie);
+}
+
+function clearCsrfCookie(res: express.Response) {
+  const cookie = serializeCookie(csrfCookieName, '', {
+    httpOnly: false,
+    sameSite: 'Lax',
+    secure: isSecureCookie,
+    path: '/',
+    maxAge: 0
+  });
+  appendSetCookie(res, cookie);
+}
+
+function appendSetCookie(res: express.Response, cookie: string) {
+  const prev = res.getHeader('Set-Cookie');
+  if (!prev) {
+    res.setHeader('Set-Cookie', cookie);
+    return;
+  }
+  if (Array.isArray(prev)) {
+    res.setHeader('Set-Cookie', [...prev, cookie]);
+    return;
+  }
+  res.setHeader('Set-Cookie', [String(prev), cookie]);
+}
+
 function serializeCookie(
   name: string,
   value: string,
@@ -416,6 +516,27 @@ function getCookieValue(rawCookie: string | undefined, name: string) {
   return null;
 }
 
+function verifyCsrf(req: express.Request, expectedToken: string) {
+  const cookieToken = getCookieValue(req.headers.cookie, csrfCookieName);
+  const headerToken = getHeaderToken(req.headers['x-csrf-token']);
+  if (!cookieToken || !headerToken) return false;
+  if (!timingSafeEqualUtf8(cookieToken, headerToken)) return false;
+  return timingSafeEqualUtf8(expectedToken, cookieToken);
+}
+
+function getHeaderToken(value: string | string[] | undefined): string | null {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && value.length > 0) return value[0];
+  return null;
+}
+
+function timingSafeEqualUtf8(a: string, b: string) {
+  const left = Buffer.from(a, 'utf8');
+  const right = Buffer.from(b, 'utf8');
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
 function signState(payload: { sid: string; spaceUrl: string; exp: number }) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = crypto.createHmac('sha256', stateSecret).update(body).digest('base64url');
@@ -425,8 +546,10 @@ function signState(payload: { sid: string; spaceUrl: string; exp: number }) {
 function verifyState(state: string): { sid: string; spaceUrl: string } | null {
   const [body, signature] = state.split('.');
   if (!body || !signature) return null;
-  const expected = crypto.createHmac('sha256', stateSecret).update(body).digest('base64url');
-  if (expected !== signature) return null;
+  const expected = crypto.createHmac('sha256', stateSecret).update(body).digest();
+  const actual = Buffer.from(signature, 'base64url');
+  if (expected.length !== actual.length) return null;
+  if (!crypto.timingSafeEqual(expected, actual)) return null;
 
   const parsed = z
     .object({
@@ -499,6 +622,32 @@ async function fetchBacklogUser(spaceUrl: string, accessToken: string) {
   }
 
   return BacklogUserSchema.parse(await response.json());
+}
+
+function validateBacklogSpaceUrl(spaceUrl: string): { ok: true; value: string } | { ok: false; message: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(spaceUrl);
+  } catch {
+    return { ok: false, message: 'Invalid Space URL.' };
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, message: 'Space URL must use https.' };
+  }
+  if (parsed.username || parsed.password) {
+    return { ok: false, message: 'Space URL must not include credentials.' };
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (!allowedBacklogHostSuffixes.some((suffix) => host.endsWith(suffix))) {
+    return { ok: false, message: 'Only Backlog domains are allowed.' };
+  }
+  if (host === 'backlog.com' || host === 'backlog.jp' || host === 'backlogtool.com') {
+    return { ok: false, message: 'Space URL must include your space subdomain.' };
+  }
+
+  return { ok: true, value: parsed.toString() };
 }
 
 function clearExpired() {

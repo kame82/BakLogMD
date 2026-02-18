@@ -51,3 +51,5 @@ npm run build
 - Backlogの`client_secret`は`apps/api`でのみ保持
 - `apps/web`/`apps/desktop`はブローカー経由で認証
 - 共通の入力バリデーションは`packages/shared`で一元化
+- Webの更新系POSTは`Origin`検証 + double-submit CSRFで保護
+- Cookieは用途を分離（`SESSION_COOKIE_NAME`: 認証セッションID / `CSRF_COOKIE_NAME`: CSRFトークン）
