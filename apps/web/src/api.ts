@@ -1,7 +1,10 @@
 import {
   AuthSessionSchema,
   type AuthSession,
+  IssueDetailSchema,
+  IssueSummariesResponseSchema,
   OAuthStartResponseSchema,
+  ProjectsResponseSchema,
   SpaceUrlSchema
 } from '@baklogmd/shared';
 import { ZodError } from 'zod';
@@ -98,4 +101,45 @@ export async function logout(): Promise<void> {
   if (!response.ok) {
     throw await parseError(response);
   }
+}
+
+export async function fetchProjects() {
+  const response = await fetch(`${API_BASE_URL}/backlog/projects`, {
+    credentials: 'include'
+  });
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return ProjectsResponseSchema.parse(await response.json());
+}
+
+export async function searchIssues(mode: 'key' | 'keyword', q: string) {
+  const query = q.trim();
+  if (!query) {
+    throw new Error('検索語を入力してください。');
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/backlog/issues/search?mode=${encodeURIComponent(mode)}&q=${encodeURIComponent(query)}`,
+    { credentials: 'include' }
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return IssueSummariesResponseSchema.parse(await response.json());
+}
+
+export async function fetchIssueDetail(issueKey: string) {
+  const key = issueKey.trim();
+  if (!key) {
+    throw new Error('issueKey is required.');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/backlog/issues/${encodeURIComponent(key)}`, {
+    credentials: 'include'
+  });
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return IssueDetailSchema.parse(await response.json());
 }

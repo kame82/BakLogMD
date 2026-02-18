@@ -2,6 +2,17 @@
 
 Backlog OAuthブローカーAPIです。
 
+## 実装済みエンドポイント
+
+- `GET /health`
+- `GET /oauth/backlog/start`
+- `POST /oauth/backlog/callback`
+- `GET /auth/session`
+- `POST /auth/logout`
+- `GET /backlog/projects`
+- `GET /backlog/issues/search`
+- `GET /backlog/issues/:issueKey`
+
 ## 起動
 
 ```bash
