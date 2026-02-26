@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "desktop:dev": "npm run dev -w apps/desktop",
-    "desktop:tauri": "npm run tauri -w apps/desktop",
+    "desktop:tauri": "npm run tauri -w apps/desktop dev",
     "desktop:build": "npm run build -w apps/desktop",
     "web:dev": "npm run dev -w apps/web",
     "webapi:dev": "node scripts/dev-web-api.mjs",
